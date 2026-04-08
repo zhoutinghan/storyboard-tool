@@ -1,0 +1,628 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分镜预演工具 v3.1 - 云同步版</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; font-size: 13px; }
+        .container { max-width: 1600px; margin: 0 auto; padding: 20px; }
+        .header { margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 22px; font-weight: 700; background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .header-actions { display: flex; gap: 6px; align-items: center; }
+        .btn { padding: 7px 14px; border-radius: 6px; font-weight: 500; cursor: pointer; border: none; font-size: 12px; transition: all 0.2s; }
+        .btn-primary { background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; }
+        .btn-secondary { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+        .btn-success { background: #059669; color: white; }
+        .btn-warning { background: #d97706; color: white; }
+        .btn-small { padding: 4px 10px; font-size: 11px; }
+        .main-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+        @media (min-width: 1400px) { .main-grid { grid-template-columns: 360px 1fr; } }
+        .card { background: #1e293b; border-radius: 8px; border: 1px solid #334155; padding: 14px; }
+        .card-title { font-weight: 600; font-size: 12px; color: #94a3b8; margin-bottom: 10px; }
+        textarea { width: 100%; padding: 10px; border: 1px solid #334155; border-radius: 6px; font-size: 12px; resize: none; outline: none; background: #0f172a; color: #e2e8f0; font-family: monospace; line-height: 1.5; }
+        textarea:focus { border-color: #3b82f6; }
+        .hidden { display: none !important; }
+        
+        /* 云同步状态 */
+        .sync-status { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #0f172a; border-radius: 6px; margin-bottom: 10px; font-size: 11px; }
+        .sync-status.online { border-left: 3px solid #22c55e; }
+        .sync-status.offline { border-left: 3px solid #ef4444; }
+        .sync-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .sync-dot.online { background: #22c55e; animation: pulse 2s infinite; }
+        .sync-dot.offline { background: #ef4444; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        
+        /* 输入框 */
+        .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
+        .input-row input { flex: 1; padding: 8px 10px; border: 1px solid #334155; border-radius: 6px; background: #0f172a; color: #e2e8f0; font-size: 12px; }
+        .input-row input:focus { outline: none; border-color: #3b82f6; }
+        
+        /* 项目列表 */
+        .project-list { max-height: 150px; overflow-y: auto; margin-top: 10px; }
+        .project-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: #0f172a; border-radius: 6px; margin-bottom: 6px; cursor: pointer; transition: all 0.2s; }
+        .project-item:hover { background: #1a2744; }
+        .project-item.active { border-left: 3px solid #3b82f6; }
+        .project-name { font-size: 12px; font-weight: 500; }
+        .project-date { font-size: 10px; color: #64748b; }
+        
+        /* 统计、表格等样式省略... */
+        .stats-row { display: flex; gap: 10px; margin-top: 10px; }
+        .stat-item { flex: 1; background: #0f172a; border-radius: 6px; padding: 10px; text-align: center; }
+        .stat-value { font-size: 20px; font-weight: 700; }
+        .stat-value.blue { color: #60a5fa; }
+        .stat-value.green { color: #34d399; }
+        .stat-value.purple { color: #a78bfa; }
+        .stat-value.orange { color: #fb923c; }
+        .stat-label { font-size: 10px; color: #64748b; margin-top: 2px; }
+        
+        .shots-table-wrap { overflow-x: auto; max-height: calc(100vh - 200px); }
+        .shots-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .shots-table th { background: #0f172a; padding: 10px 8px; text-align: left; font-weight: 600; color: #94a3b8; border-bottom: 1px solid #334155; position: sticky; top: 0; }
+        .shots-table td { padding: 10px 8px; border-bottom: 1px solid #1e293b; vertical-align: middle; }
+        .shots-table tr:hover td { background: #1a2744; }
+        
+        .shot-thumb { width: 120px; height: 68px; background: #1a1a2e; border-radius: 4px; }
+        .shot-thumb canvas { width: 100%; height: 100%; border-radius: 4px; }
+        
+        .tag { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin: 1px; cursor: pointer; }
+        .tag-blue { background: #1e3a5f; color: #93c5fd; }
+        .tag-green { background: #14532d; color: #86efac; }
+        
+        .rhythm-bar { display: flex; gap: 2px; margin-top: 8px; height: 32px; align-items: flex-end; }
+        .rhythm-block { border-radius: 2px; cursor: pointer; min-width: 4px; }
+        .rhythm-calm { background: #22c55e; }
+        .rhythm-tense { background: #eab308; }
+        .rhythm-action { background: #ef4444; }
+        
+        /* 模态框 */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal { background: #1e293b; border-radius: 10px; border: 1px solid #334155; padding: 20px; max-width: 500px; width: 90%; max-height: 85vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+        .modal-title { font-size: 16px; font-weight: 600; }
+        .modal-close { background: none; border: none; color: #64748b; font-size: 22px; cursor: pointer; }
+        
+        .help-text { font-size: 11px; color: #64748b; margin-top: 8px; line-height: 1.5; }
+        .help-text a { color: #60a5fa; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 分镜预演工具 v3.1</h1>
+            <div class="header-actions">
+                <button class="btn btn-secondary" id="loadBtn">示例</button>
+                <button class="btn btn-secondary" id="libraryBtn">镜头库</button>
+                <button class="btn btn-secondary" id="exportBtn">导出</button>
+            </div>
+        </div>
+        
+        <div class="main-grid">
+            <div>
+                <!-- 云同步面板 -->
+                <div class="card" id="syncPanel">
+                    <div class="card-title">☁️ 云同步</div>
+                    <div id="syncStatus" class="sync-status offline">
+                        <div class="sync-dot offline"></div>
+                        <span id="syncText">未登录 - 数据仅保存在本地</span>
+                    </div>
+                    <div id="loginForm">
+                        <div class="input-row">
+                            <input type="password" id="githubToken" placeholder="GitHub Personal Access Token">
+                        </div>
+                        <div class="help-text">
+                            1. 访问 <a href="https://github.com/settings/tokens" target="_blank">GitHub Settings → Tokens</a><br>
+                            2. 点击 "Generate new token (classic)"<br>
+                            3. 勾选 "gist" 权限，生成后复制到这里
+                        </div>
+                        <button class="btn btn-primary" style="width:100%;margin-top:10px;" id="loginBtn">连接 GitHub</button>
+                    </div>
+                    <div id="projectPanel" class="hidden">
+                        <div class="input-row">
+                            <input type="text" id="projectName" placeholder="项目名称">
+                            <button class="btn btn-success btn-small" id="saveCloudBtn">保存</button>
+                        </div>
+                        <div class="project-list" id="projectList"></div>
+                        <button class="btn btn-warning btn-small" style="width:100%;margin-top:8px;" id="logoutBtn">断开连接</button>
+                    </div>
+                </div>
+                
+                <div class="card" style="margin-top:10px;">
+                    <div class="card-title">剧本文本</div>
+                    <textarea id="scriptInput" rows="12" placeholder="粘贴剧本文本..."></textarea>
+                    <button class="btn btn-primary" style="width:100%;margin-top:10px;" id="analyzeBtn">生成分镜</button>
+                </div>
+                
+                <div id="statsPanel" class="card hidden" style="margin-top:10px;">
+                    <div class="card-title">统计</div>
+                    <div class="stats-row">
+                        <div class="stat-item"><div id="totalTime" class="stat-value blue">0秒</div><div class="stat-label">总时长</div></div>
+                        <div class="stat-item"><div id="sceneNum" class="stat-value green">0</div><div class="stat-label">场景</div></div>
+                        <div class="stat-item"><div id="shotNum" class="stat-value purple">0</div><div class="stat-label">镜头</div></div>
+                    </div>
+                    <div style="margin-top:10px;">
+                        <div class="card-title" style="font-size:10px;">情绪节奏</div>
+                        <div id="rhythmBar" class="rhythm-bar"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">分镜表格 <button class="btn btn-secondary btn-small" id="addShotBtn" style="display:none;float:right;">+ 添加</button></div>
+                <div class="shots-table-wrap" id="tableWrap">
+                    <div style="text-align:center;color:#475569;padding:60px;">输入剧本生成分镜表</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="modalContainer"></div>
+    <script>
+// ==================== 配置 ====================
+var EXAMPLE = '1.31 湖面 凌晨 外\n一条独木舟如箭般冲向湖中水松林处。\n莫求立在船尾，弯弓搭箭，紧盯着远处湖面，追踪着那一道水纹。\n【特写】水纹中可见带血的鼠毛。\n莫求弓弦拉满。\n她瞳孔猛缩，身子向湖面俯冲，同时数枚铁箭离弦，飞样地斜射入湖面，紧接着，那缠在腰上的网已经从她手中散开，铺天盖地般向湖中铁箭入处撒了过去。\n\n1.32 湖内 凌晨 外\n心月狐的回忆被头顶传来的鼠叫声惊扰。\n他睁开眼，转身抬头，只见一磨盘般大的带双翅的影子正在头顶数丈划过。\n他好奇追过去，才看到依稀三条老鼠腿。\n一枚铁箭突然而至，他尚未及反应，箭已没入他胸膛。\n\n1.33 湖面水松林 凌晨 外\n莫求双足反勾树枝，运气提臂收网，一脸兴奋。\n待她拉着那兜着心月狐的网露出水面时，她目光落在他惨白的嘴角和溢血的脸上。\n莫求惊呼一声：怎么是个人啊！\n她脚腕一松，自己连带着手中渔网，网中少年，一起又落回了湖中。';
+
+// 库配置
+var compositions = JSON.parse(localStorage.getItem('shotCompositions') || 'null') || [
+    { id: 'WS', name: '全景' }, { id: 'MS', name: '中景' }, { id: 'CU', name: '近景' },
+    { id: 'ECU', name: '特写' }, { id: 'TS', name: '双人' }, { id: 'OTS', name: '过肩' }
+];
+var angles = JSON.parse(localStorage.getItem('shotAngles') || 'null') || [
+    { id: 'eye', name: '平视' }, { id: 'high', name: '俯视' }, { id: 'low', name: '仰视' }
+];
+var emotions = JSON.parse(localStorage.getItem('shotEmotions') || 'null') || [
+    { id: 'calm', name: '平静', color: '#22c55e' },
+    { id: 'tense', name: '紧张', color: '#eab308' },
+    { id: 'action', name: '动作', color: '#ef4444' },
+    { id: 'shock', name: '震惊', color: '#8b5cf6' }
+];
+
+// 全局状态
+var currentData = null;
+var githubToken = localStorage.getItem('githubToken') || '';
+var gistId = localStorage.getItem('gistId') || '';
+var currentProject = null;
+
+// ==================== 初始化 ====================
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('loadBtn').onclick = function() { document.getElementById('scriptInput').value = EXAMPLE; };
+    document.getElementById('analyzeBtn').onclick = analyze;
+    document.getElementById('exportBtn').onclick = showExportModal;
+    document.getElementById('libraryBtn').onclick = showLibraryModal;
+    document.getElementById('addShotBtn').onclick = addNewShot;
+    document.getElementById('loginBtn').onclick = loginGitHub;
+    document.getElementById('logoutBtn').onclick = logoutGitHub;
+    document.getElementById('saveCloudBtn').onclick = saveToCloud;
+    
+    // 检查登录状态
+    if (githubToken) {
+        verifyToken();
+    }
+});
+
+// ==================== GitHub Gist 同步 ====================
+async function loginGitHub() {
+    var token = document.getElementById('githubToken').value.trim();
+    if (!token) { alert('请输入 GitHub Token'); return; }
+    
+    githubToken = token;
+    localStorage.setItem('githubToken', token);
+    
+    await verifyToken();
+}
+
+async function verifyToken() {
+    try {
+        var res = await fetch('https://api.github.com/user', {
+            headers: { 'Authorization': 'token ' + githubToken }
+        });
+        
+        if (!res.ok) throw new Error('Token 无效');
+        
+        var user = await res.json();
+        showLoggedIn(user.login);
+        loadProjectList();
+    } catch (e) {
+        alert('登录失败: ' + e.message);
+        logoutGitHub();
+    }
+}
+
+function showLoggedIn(username) {
+    document.getElementById('loginForm').classList.add('hidden');
+    document.getElementById('projectPanel').classList.remove('hidden');
+    document.getElementById('syncStatus').className = 'sync-status online';
+    document.getElementById('syncStatus').querySelector('.sync-dot').className = 'sync-dot online';
+    document.getElementById('syncText').textContent = '已连接: ' + username;
+}
+
+function logoutGitHub() {
+    githubToken = '';
+    gistId = '';
+    localStorage.removeItem('githubToken');
+    localStorage.removeItem('gistId');
+    
+    document.getElementById('loginForm').classList.remove('hidden');
+    document.getElementById('projectPanel').classList.add('hidden');
+    document.getElementById('syncStatus').className = 'sync-status offline';
+    document.getElementById('syncStatus').querySelector('.sync-dot').className = 'sync-dot offline';
+    document.getElementById('syncText').textContent = '未登录 - 数据仅保存在本地';
+    document.getElementById('projectList').innerHTML = '';
+}
+
+async function loadProjectList() {
+    if (!githubToken) return;
+    
+    try {
+        var res = await fetch('https://api.github.com/gists', {
+            headers: { 'Authorization': 'token ' + githubToken }
+        });
+        
+        if (!res.ok) throw new Error('获取列表失败');
+        
+        var gists = await res.json();
+        var projects = gists.filter(function(g) {
+            return g.description && g.description.indexOf('[分镜工具]') === 0;
+        });
+        
+        renderProjectList(projects);
+    } catch (e) {
+        console.error('加载项目列表失败:', e);
+    }
+}
+
+function renderProjectList(projects) {
+    var html = '';
+    for (var i = 0; i < projects.length; i++) {
+        var p = projects[i];
+        var name = p.description.replace('[分镜工具]', '').trim() || '未命名项目';
+        var date = new Date(p.updated_at).toLocaleDateString('zh-CN');
+        html += '<div class="project-item" onclick="loadProject(\'' + p.id + '\')">';
+        html += '<div><div class="project-name">' + name + '</div><div class="project-date">' + date + '</div></div>';
+        html += '</div>';
+    }
+    if (projects.length === 0) html = '<div style="color:#64748b;font-size:11px;padding:10px;">暂无云端项目</div>';
+    document.getElementById('projectList').innerHTML = html;
+}
+
+async function saveToCloud() {
+    if (!githubToken) { alert('请先登录'); return; }
+    if (!currentData) { alert('请先生成分镜'); return; }
+    
+    var name = document.getElementById('projectName').value.trim() || '未命名项目';
+    var data = {
+        version: '3.1',
+        name: name,
+        timestamp: new Date().toISOString(),
+        script: document.getElementById('scriptInput').value,
+        data: currentData,
+        libraries: { compositions: compositions, angles: angles, emotions: emotions }
+    };
+    
+    try {
+        var body = {
+            description: '[分镜工具] ' + name,
+            public: false,
+            files: {
+                'storyboard.json': { content: JSON.stringify(data, null, 2) }
+            }
+        };
+        
+        var url = gistId ? 'https://api.github.com/gists/' + gistId : 'https://api.github.com/gists';
+        var method = gistId ? 'PATCH' : 'POST';
+        
+        var res = await fetch(url, {
+            method: method,
+            headers: {
+                'Authorization': 'token ' + githubToken,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+        
+        if (!res.ok) throw new Error('保存失败');
+        
+        var result = await res.json();
+        gistId = result.id;
+        localStorage.setItem('gistId', gistId);
+        
+        alert('保存成功！');
+        loadProjectList();
+    } catch (e) {
+        alert('保存失败: ' + e.message);
+    }
+}
+
+async function loadProject(id) {
+    if (!githubToken) return;
+    
+    try {
+        var res = await fetch('https://api.github.com/gists/' + id, {
+            headers: { 'Authorization': 'token ' + githubToken }
+        });
+        
+        if (!res.ok) throw new Error('加载失败');
+        
+        var gist = await res.json();
+        var content = gist.files['storyboard.json'].content;
+        var data = JSON.parse(content);
+        
+        // 恢复数据
+        document.getElementById('scriptInput').value = data.script || '';
+        document.getElementById('projectName').value = data.name || '';
+        currentData = data.data;
+        gistId = id;
+        localStorage.setItem('gistId', gistId);
+        
+        // 恢复库配置
+        if (data.libraries) {
+            if (data.libraries.compositions) compositions = data.libraries.compositions;
+            if (data.libraries.angles) angles = data.libraries.angles;
+            if (data.libraries.emotions) emotions = data.libraries.emotions;
+        }
+        
+        renderAll();
+        alert('项目已加载: ' + (data.name || '未命名'));
+    } catch (e) {
+        alert('加载失败: ' + e.message);
+    }
+}
+
+// ==================== 核心解析 ====================
+function analyze() {
+    var text = document.getElementById('scriptInput').value.trim();
+    if (!text) { alert('请输入剧本内容'); return; }
+    try {
+        var scenes = parseScript(text);
+        if (scenes.length === 0) { alert('未能识别出有效场景'); return; }
+        var shots = generateShots(scenes);
+        currentData = { scenes: scenes, shots: shots };
+        renderAll();
+        document.getElementById('addShotBtn').style.display = 'inline-block';
+    } catch (e) { alert('解析出错: ' + e.message); console.error(e); }
+}
+
+function parseScript(text) {
+    var lines = text.split('\n');
+    var scenes = [];
+    var current = null;
+    var knownChars = ['莫求', '心月狐', '鼠怪'];
+    var sceneRegex = /^(\d+\.?\d*)\s+([^\s]+(?:\s+[^\s]+)?)\s+(凌晨|早晨|上午|中午|下午|傍晚|夜晚|深夜|日|夜)\s*(内|外)?\s*$/i;
+    
+    for (var i = 0; i < lines.length; i++) {
+        var t = lines[i].trim();
+        if (!t) continue;
+        
+        var sceneMatch = t.match(sceneRegex);
+        if (sceneMatch) {
+            if (current) scenes.push(current);
+            var location = (sceneMatch[2] || '未知').replace(/\s*(凌晨|早晨|上午|中午|下午|傍晚|夜晚|深夜|日|夜)\s*(内|外)?\s*$/gi, '').trim();
+            current = { number: sceneMatch[1], location: location, time: sceneMatch[3] || '日', actions: [], chars: [] };
+            continue;
+        }
+        
+        if (!current) current = { number: '1', location: '默认场景', time: '日', actions: [], chars: [] };
+        
+        var shotNote = '', angleNote = 'eye';
+        if (/\【特写\】/.test(t)) { shotNote = 'ECU'; t = t.replace(/\【特写\】/g, '').trim(); }
+        else if (/\【全景\】/.test(t)) { shotNote = 'WS'; t = t.replace(/\【全景\】/g, '').trim(); }
+        else if (/\【近景\】/.test(t)) { shotNote = 'CU'; t = t.replace(/\【近景\】/g, '').trim(); }
+        if (/\【俯视\】/.test(t)) { angleNote = 'high'; t = t.replace(/\【俯视\】/g, '').trim(); }
+        if (/\【仰视\】/.test(t)) { angleNote = 'low'; t = t.replace(/\【仰视\】/g, '').trim(); }
+        
+        var dialogMatch = t.match(/^([^：:]+)[：:](.+)$/);
+        if (dialogMatch) {
+            var charName = dialogMatch[1].replace(/[（\(][^）\)]*[）\)]/g, '').trim();
+            if (current.chars.indexOf(charName) === -1) current.chars.push(charName);
+            current.actions.push({ type: 'dialog', char: charName, text: dialogMatch[2].trim(), shotNote: shotNote, angleNote: angleNote });
+        } else {
+            for (var j = 0; j < knownChars.length; j++) { if (t.indexOf(knownChars[j]) !== -1 && current.chars.indexOf(knownChars[j]) === -1) current.chars.push(knownChars[j]); }
+            current.actions.push({ type: 'action', text: t, shotNote: shotNote, angleNote: angleNote });
+        }
+    }
+    if (current) scenes.push(current);
+    return scenes;
+}
+
+function generateShots(scenes) {
+    var shots = [], shotNum = 1;
+    var highActionWords = ['冲', '射', '飞', '猛', '急', '追', '打', '杀', '逃', '跳', '摔', '撞', '爆炸', '火', '血', '离弦', '俯冲', '撒'];
+    var tenseWords = ['盯', '缩', '紧', '惊', '恐', '怕', '颤', '抖', '屏住', '呼吸', '拉满', '追踪', '猛', '兴奋', '惊呼'];
+    
+    for (var si = 0; si < scenes.length; si++) {
+        var s = scenes[si];
+        shots.push({ num: shotNum++, sceneNum: si + 1, scene: s, composition: 'WS', angle: 'eye', desc: s.location + ' 全景', dur: 4, chars: s.chars.slice(), emotion: 'calm' });
+        
+        for (var ai = 0; ai < s.actions.length; ai++) {
+            var a = s.actions[ai];
+            var emotion = 'calm', composition = 'MS', angle = a.angleNote || 'eye', dur = 3;
+            var text = a.text || '', intensity = 0;
+            
+            for (var k = 0; k < highActionWords.length; k++) { if (text.indexOf(highActionWords[k]) !== -1) intensity += 2; }
+            for (var k = 0; k < tenseWords.length; k++) { if (text.indexOf(tenseWords[k]) !== -1) intensity += 1; }
+            
+            if (a.shotNote) { composition = a.shotNote; emotion = 'tense'; }
+            else if (intensity >= 4) { composition = 'ECU'; emotion = 'action'; dur = 1.5; }
+            else if (intensity >= 2) { composition = 'CU'; emotion = 'tense'; dur = 2; }
+            else if (a.type === 'dialog') { composition = 'CU'; emotion = 'calm'; dur = Math.max(2, Math.ceil(text.length / 4)); }
+            
+            var involvedChars = [];
+            for (var k = 0; k < s.chars.length; k++) { if (text.indexOf(s.chars[k]) !== -1) involvedChars.push(s.chars[k]); }
+            if (involvedChars.length >= 2 && composition !== 'ECU') composition = 'TS';
+            
+            shots.push({ num: shotNum++, sceneNum: si + 1, scene: s, composition: composition, angle: angle, desc: a.type === 'dialog' ? a.char + '：' + text : text, dur: dur, chars: involvedChars.length > 0 ? involvedChars : (a.char ? [a.char] : []), emotion: emotion });
+        }
+    }
+    return shots;
+}
+
+// ==================== 渲染 ====================
+function renderAll() {
+    if (!currentData) return;
+    var shots = currentData.shots, scenes = currentData.scenes;
+    
+    var total = 0;
+    for (var i = 0; i < shots.length; i++) total += shots[i].dur;
+    var min = Math.floor(total / 60), sec = Math.round(total % 60);
+    document.getElementById('totalTime').textContent = min > 0 ? min + '分' + sec + '秒' : sec + '秒';
+    document.getElementById('sceneNum').textContent = scenes.length;
+    document.getElementById('shotNum').textContent = shots.length;
+    document.getElementById('statsPanel').classList.remove('hidden');
+    
+    var maxDur = Math.max.apply(null, shots.map(function(s) { return s.dur; }));
+    var rhythmHtml = '';
+    for (var i = 0; i < shots.length; i++) {
+        var s = shots[i];
+        var width = Math.max(4, (s.dur / maxDur) * 30);
+        rhythmHtml += '<div class="rhythm-block rhythm-' + s.emotion + '" style="width:' + width + 'px;height:' + (12 + s.dur * 3) + 'px;"></div>';
+    }
+    document.getElementById('rhythmBar').innerHTML = rhythmHtml;
+    
+    renderTable(shots);
+}
+
+function renderTable(shots) {
+    var maxDur = Math.max.apply(null, shots.map(function(s) { return s.dur; }));
+    var html = '<table class="shots-table"><thead><tr>';
+    html += '<th style="width:40px;">#</th><th style="width:100px;">预览</th><th style="width:70px;">构图</th><th style="width:50px;">角度</th>';
+    html += '<th style="width:50px;">情绪</th><th style="width:60px;">时长</th><th>描述</th><th style="width:70px;">操作</th></tr></thead><tbody>';
+    
+    var currentScene = -1;
+    for (var i = 0; i < shots.length; i++) {
+        var s = shots[i];
+        if (s.sceneNum !== currentScene) {
+            currentScene = s.sceneNum;
+            html += '<tr style="background:#1a2744;"><td colspan="8" style="font-weight:600;color:#a78bfa;">场景 ' + s.scene.number + '：' + s.scene.location + '</td></tr>';
+        }
+        
+        var comp = compositions.find(function(c) { return c.id === s.composition; }) || compositions[0];
+        var ang = angles.find(function(a) { return a.id === s.angle; }) || angles[0];
+        var em = emotions.find(function(e) { return e.id === s.emotion; }) || emotions[0];
+        var durWidth = (s.dur / maxDur) * 100;
+        
+        html += '<tr data-index="' + i + '">';
+        html += '<td><strong>#' + s.num + '</strong></td>';
+        html += '<td><div class="shot-thumb"><canvas id="thumb' + i + '" width="200" height="113"></canvas></div></td>';
+        html += '<td><span class="tag tag-blue" onclick="cycleComp(' + i + ')">' + comp.name + '</span></td>';
+        html += '<td><span class="tag tag-green" onclick="cycleAngle(' + i + ')">' + ang.name + '</span></td>';
+        html += '<td><span class="tag" style="background:' + em.color + ';color:#fff;" onclick="cycleEmo(' + i + ')">' + em.name + '</span></td>';
+        html += '<td><div style="width:50px;height:6px;background:#1e293b;border-radius:3px;overflow:hidden;"><div style="width:' + durWidth + '%;height:100%;background:#3b82f6;"></div></div><span style="font-size:9px;color:#64748b;">~' + s.dur + 's</span></td>';
+        html += '<td ondblclick="editDesc(' + i + ')">' + (s.desc.length > 40 ? s.desc.slice(0, 40) + '...' : s.desc) + '</td>';
+        html += '<td><button class="btn btn-secondary btn-small" onclick="moveShot(' + i + ',-1)">↑</button><button class="btn btn-secondary btn-small" onclick="moveShot(' + i + ',1)">↓</button><button class="btn btn-danger btn-small" onclick="delShot(' + i + ')">×</button></td>';
+        html += '</tr>';
+    }
+    html += '</tbody></table>';
+    document.getElementById('tableWrap').innerHTML = html;
+    
+    setTimeout(function() {
+        for (var i = 0; i < shots.length; i++) drawThumb('thumb' + i, shots[i].composition, shots[i].angle, shots[i].emotion);
+    }, 50);
+}
+
+// ==================== 编辑功能 ====================
+function cycleComp(i) { if (!currentData) return; var idx = compositions.findIndex(function(c) { return c.id === currentData.shots[i].composition; }); currentData.shots[i].composition = compositions[(idx + 1) % compositions.length].id; renderAll(); }
+function cycleAngle(i) { if (!currentData) return; var idx = angles.findIndex(function(a) { return a.id === currentData.shots[i].angle; }); currentData.shots[i].angle = angles[(idx + 1) % angles.length].id; renderAll(); }
+function cycleEmo(i) { if (!currentData) return; var idx = emotions.findIndex(function(e) { return e.id === currentData.shots[i].emotion; }); currentData.shots[i].emotion = emotions[(idx + 1) % emotions.length].id; renderAll(); }
+function editDesc(i) { if (!currentData) return; var td = document.querySelector('tr[data-index="' + i + '"] td:nth-child(7)'); var inp = document.createElement('input'); inp.type = 'text'; inp.value = currentData.shots[i].desc; inp.className = 'form-input'; inp.style.width = '100%'; td.innerHTML = ''; td.appendChild(inp); inp.focus(); inp.onblur = function() { currentData.shots[i].desc = inp.value; renderAll(); }; inp.onkeydown = function(e) { if (e.key === 'Enter') inp.blur(); if (e.key === 'Escape') renderAll(); }; }
+function moveShot(i, dir) { if (!currentData) return; var ni = i + dir; if (ni < 0 || ni >= currentData.shots.length) return; var t = currentData.shots[i]; currentData.shots[i] = currentData.shots[ni]; currentData.shots[ni] = t; for (var j = 0; j < currentData.shots.length; j++) currentData.shots[j].num = j + 1; renderAll(); }
+function delShot(i) { if (!currentData || !confirm('删除镜头 #' + (i + 1) + '?')) return; currentData.shots.splice(i, 1); for (var j = 0; j < currentData.shots.length; j++) currentData.shots[j].num = j + 1; renderAll(); }
+function addNewShot() { if (!currentData) return; var ls = currentData.scenes[currentData.scenes.length - 1]; currentData.shots.push({ num: currentData.shots.length + 1, sceneNum: currentData.scenes.length, scene: ls, composition: 'MS', angle: 'eye', desc: '新建镜头（双击编辑）', dur: 3, chars: [], emotion: 'calm' }); renderAll(); }
+
+// ==================== 绘图 ====================
+function drawThumb(id, comp, angle, emo) {
+    var cvs = document.getElementById(id); if (!cvs) return;
+    var ctx = cvs.getContext('2d'), w = cvs.width, h = cvs.height;
+    var bg = emo === 'action' ? '#1a100a' : (emo === 'tense' ? '#1a0a15' : '#0a1015');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(w/3, 0); ctx.lineTo(w/3, h); ctx.moveTo(w*2/3, 0); ctx.lineTo(w*2/3, h); ctx.moveTo(0, h/3); ctx.lineTo(w, h/3); ctx.moveTo(0, h*2/3); ctx.lineTo(w, h*2/3); ctx.stroke();
+    ctx.save(); var cx = w/2, cy = h/2;
+    if (angle === 'high') { ctx.translate(cx, h * 0.3); ctx.scale(1, 0.6); }
+    else if (angle === 'low') { ctx.translate(cx, h * 0.7); ctx.scale(1, 1.2); }
+    else ctx.translate(cx, cy);
+    ctx.strokeStyle = '#6b7280'; ctx.fillStyle = '#6b7280'; ctx.lineWidth = 2;
+    if (comp === 'WS') { ctx.beginPath(); ctx.moveTo(-100, 20); ctx.lineTo(100, 20); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 35, 5, 0, Math.PI * 2); ctx.stroke(); }
+    else if (comp === 'ECU') { ctx.strokeStyle = '#94a3b8'; ctx.beginPath(); ctx.ellipse(0, 0, 35, 22, 0, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = '#1e293b'; ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(3, -3, 2, 0, Math.PI * 2); ctx.fill(); }
+    else if (comp === 'CU') { ctx.beginPath(); ctx.ellipse(0, 0, 40, 50, 0, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.ellipse(-12, -5, 9, 6, 0, 0, Math.PI * 2); ctx.ellipse(12, -5, 9, 6, 0, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.arc(-12, -5, 3, 0, Math.PI * 2); ctx.arc(12, -5, 3, 0, Math.PI * 2); ctx.fill(); }
+    else if (comp === 'TS') { drawFig(ctx, -30, 0, 0.45); drawFig(ctx, 30, 0, 0.45); }
+    else if (comp === 'OTS') { ctx.beginPath(); ctx.ellipse(-35, 10, 30, 40, 0.3, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.ellipse(20, 0, 28, 35, 0, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.arc(20, -40, 18, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.arc(16, -42, 2, 0, Math.PI * 2); ctx.arc(24, -42, 2, 0, Math.PI * 2); ctx.fill(); }
+    else { ctx.beginPath(); ctx.ellipse(0, 10, 28, 40, 0, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.arc(0, -35, 18, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.arc(-6, -38, 2, 0, Math.PI * 2); ctx.arc(6, -38, 2, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+    if (angle !== 'eye') { ctx.fillStyle = angle === 'high' ? '#60a5fa' : '#f87171'; ctx.font = 'bold 9px sans-serif'; ctx.fillText(angle === 'high' ? '↗' : '↘', 5, 12); }
+}
+function drawFig(ctx, x, y, s) { ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.beginPath(); ctx.arc(0, -25, 10, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, -15); ctx.lineTo(0, 15); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-10, -5); ctx.lineTo(0, -8); ctx.lineTo(10, -5); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, 15); ctx.lineTo(-7, 35); ctx.moveTo(0, 15); ctx.lineTo(7, 35); ctx.stroke(); ctx.restore(); }
+
+// ==================== 模态框 ====================
+function showModal(html) { var ov = document.createElement('div'); ov.className = 'modal-overlay'; ov.onclick = function(e) { if (e.target === ov) closeModal(); }; var m = document.createElement('div'); m.className = 'modal'; m.innerHTML = html; ov.appendChild(m); document.getElementById('modalContainer').appendChild(ov); }
+function closeModal() { document.getElementById('modalContainer').innerHTML = ''; }
+
+function showLibraryModal() {
+    var html = '<div class="modal-header"><span class="modal-title">📷 镜头库</span><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body">';
+    html += '<h4 style="color:#94a3b8;font-size:12px;margin-bottom:8px;">构图</h4><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">';
+    for (var i = 0; i < compositions.length; i++) { html += '<div style="background:#0f172a;padding:8px;border-radius:6px;"><div style="font-size:11px;font-weight:600;">' + compositions[i].name + '</div><div style="font-size:9px;color:#64748b;">' + compositions[i].id + '</div></div>'; }
+    html += '</div><h4 style="color:#94a3b8;font-size:12px;margin-bottom:8px;">角度</h4><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">';
+    for (var i = 0; i < angles.length; i++) { html += '<div style="background:#0f172a;padding:8px;border-radius:6px;"><div style="font-size:11px;font-weight:600;">' + angles[i].name + '</div><div style="font-size:9px;color:#64748b;">' + angles[i].id + '</div></div>'; }
+    html += '</div></div>';
+    showModal(html);
+}
+
+function showExportModal() {
+    if (!currentData) { alert('请先生成分镜'); return; }
+    var html = '<div class="modal-header"><span class="modal-title">📥 导出</span><button class="modal-close" onclick="closeModal()">×</button></div><div class="modal-body">';
+    html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">';
+    html += '<div style="background:#0f172a;padding:14px;border-radius:8px;text-align:center;cursor:pointer;" onclick="doExport(\'md\')"><div style="font-size:24px;margin-bottom:6px;">📝</div><div style="font-size:12px;font-weight:600;">Markdown</div></div>';
+    html += '<div style="background:#0f172a;padding:14px;border-radius:8px;text-align:center;cursor:pointer;" onclick="doExport(\'html\')"><div style="font-size:24px;margin-bottom:6px;">🌐</div><div style="font-size:12px;font-weight:600;">HTML</div></div>';
+    html += '<div style="background:#0f172a;padding:14px;border-radius:8px;text-align:center;cursor:pointer;" onclick="doExport(\'json\')"><div style="font-size:24px;margin-bottom:6px;">📊</div><div style="font-size:12px;font-weight:600;">JSON</div></div>';
+    html += '</div></div>';
+    showModal(html);
+}
+
+function doExport(type) {
+    if (!currentData) return;
+    var shots = currentData.shots, scenes = currentData.scenes;
+    var content, filename, mime;
+    
+    if (type === 'md') {
+        content = '# 分镜表\n\n总镜头：' + shots.length + ' | 时长：' + document.getElementById('totalTime').textContent + '\n\n';
+        var cs = -1;
+        for (var i = 0; i < shots.length; i++) {
+            var s = shots[i];
+            if (s.sceneNum !== cs) { cs = s.sceneNum; content += '## 场景 ' + s.scene.number + '：' + s.scene.location + '\n\n'; }
+            var comp = compositions.find(function(c) { return c.id === s.composition; });
+            var ang = angles.find(function(a) { return a.id === s.angle; });
+            var em = emotions.find(function(e) { return e.id === s.emotion; });
+            content += '**#' + s.num + '** | ' + comp.name + ' | ' + ang.name + ' | ' + em.name + ' | ~' + s.dur + 's\n\n> ' + s.desc + '\n\n';
+        }
+        filename = '分镜表_' + new Date().toISOString().slice(0, 10) + '.md';
+        mime = 'text/markdown';
+    } else if (type === 'html') {
+        content = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>分镜表</title><style>body{font-family:sans-serif;max-width:900px;margin:0 auto;padding:20px;}table{width:100%;border-collapse:collapse;}th,td{padding:10px;border:1px solid #ddd;text-align:left;}th{background:#333;color:#fff;}</style></head><body><h1>分镜表</h1><table><tr><th>#</th><th>构图</th><th>角度</th><th>情绪</th><th>时长</th><th>描述</th></tr>';
+        for (var i = 0; i < shots.length; i++) {
+            var s = shots[i];
+            var comp = compositions.find(function(c) { return c.id === s.composition; });
+            var ang = angles.find(function(a) { return a.id === s.angle; });
+            var em = emotions.find(function(e) { return e.id === s.emotion; });
+            content += '<tr><td>#' + s.num + '</td><td>' + comp.name + '</td><td>' + ang.name + '</td><td>' + em.name + '</td><td>~' + s.dur + 's</td><td>' + s.desc + '</td></tr>';
+        }
+        content += '</table></body></html>';
+        filename = '分镜表_' + new Date().toISOString().slice(0, 10) + '.html';
+        mime = 'text/html';
+    } else {
+        content = JSON.stringify({ summary: { shots: shots.length, duration: document.getElementById('totalTime').textContent }, scenes: scenes, shots: shots }, null, 2);
+        filename = '分镜表_' + new Date().toISOString().slice(0, 10) + '.json';
+        mime = 'application/json';
+    }
+    
+    var blob = new Blob([content], { type: mime + ';charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    closeModal();
+}
+
+console.log('分镜预演工具 v3.1 云同步版已加载');
+    </script>
+</body>
+</html>
